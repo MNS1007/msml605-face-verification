@@ -1,4 +1,4 @@
-# MSML 605 — Face Verification System
+# MSML 605 - Face Verification System
 
 End-to-end face verification system built on the LFW (Labeled Faces in the Wild) dataset.
 Given two face images, the system outputs whether they match (same identity or different),
