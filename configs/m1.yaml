@@ -1,0 +1,22 @@
+seed: 42
+
+# Paths (relative to project root)
+data_dir: data/
+output_dir: outputs/
+
+# Split policy: split by identity — all images of an identity go into one split
+split_policy: "by_identity"
+split_ratios:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+
+# Pair generation
+pairs:
+  positive_per_split: 500
+  negative_per_split: 500
+
+# Benchmark parameters
+benchmark:
+  N: 10000
+  D: 512
