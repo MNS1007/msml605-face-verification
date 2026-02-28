@@ -1,6 +1,8 @@
 import os
 import json
 import yaml
+import numpy as np
+import pandas as pd
 import kagglehub
 from kagglehub import KaggleDatasetAdapter
 from sklearn.model_selection import train_test_split
@@ -9,6 +11,36 @@ from sklearn.model_selection import train_test_split
 def load_config(config_path="config.yaml"):
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
+
+
+def preprocess_pairs(df):
+    rows = []
+    for _, row in df.iterrows():
+        name = row["name"]
+        img1 = row["imagenum1"]
+        img2_raw = row["imagenum2"]
+        col4 = row.get("Unnamed: 3", np.nan)
+
+        try:
+            img2 = int(float(img2_raw))
+            rows.append({
+                "name1": name,
+                "imagenum1": int(img1),
+                "name2": name,
+                "imagenum2": img2,
+                "label": 1
+            })
+        except (ValueError, TypeError):
+            rows.append({
+                "name1": name,
+                "imagenum1": int(img1),
+                "name2": str(img2_raw),
+                "imagenum2": int(float(col4)),
+                "label": 0
+            })
+
+    clean_df = pd.DataFrame(rows)
+    return clean_df
 
 
 def split(df, config):
@@ -33,11 +65,6 @@ def split(df, config):
         random_state=seed,
         shuffle=True
     )
-
-    print("Train shape:", train_df.shape)
-    print("Validation shape:", val_df.shape)
-    print("Test shape:", test_df.shape)
-
     return train_df, val_df, test_df
 
 
@@ -59,23 +86,39 @@ def write_manifest(filepath, df, train, val, test, config):
     with open("./dataset/dataset_manifest.json", "w") as f:
         json.dump(manifest, f, indent=4)
 
-    print("Manifest written to ./dataset/dataset_manifest.json")
-
 
 def main():
-    config = load_config("config.yaml")
+    config = load_config("./configs/m1.yaml")
 
     file_path = "pairs.csv"
+    output_dir="./dataset"
 
     df = kagglehub.load_dataset(
         KaggleDatasetAdapter.PANDAS,
         "jessicali9530/lfw-dataset",
         file_path
     )
+    path = kagglehub.dataset_download("jessicali9530/lfw-dataset")
 
-    print("First 5 records:", df.head())
+    config["data_path"] = path
+    with open("C:/Users/srira/OneDrive/Desktop/604/milestone-1/configs/m1.yaml", "w") as f:
+        yaml.dump(config, f, default_flow_style=False)
+
+    print(df.head())
+
+    df = preprocess_pairs(df)
 
     train, val, test = split(df, config)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    train_path = os.path.join(output_dir, "train.csv")
+    val_path = os.path.join(output_dir, "val.csv")
+    test_path = os.path.join(output_dir, "test.csv")
+
+    train.to_csv(train_path, index=False)
+    val.to_csv(val_path, index=False)
+    test.to_csv(test_path, index=False)
 
     write_manifest(file_path, df, train, val, test, config)
 
