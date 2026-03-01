@@ -21,49 +21,44 @@ verification pair generation, and fast vectorized similarity scoring.
 
 ## How to Run
 
-### 1. Set up environment
+Reproduce all milestone outputs from a clean clone:
 
 ```bash
+# 1. Clone and enter project
+git clone <repo-url>
+cd msml605-face-verification
+
+# 2. Set up environment
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-### 2. Ingest LFW dataset
-
-```bash
+# 3. Ingest LFW dataset (downloads data, creates deterministic splits and manifest)
 python scripts/ingest_lfw.py --config configs/m1.yaml
-```
 
-### 3. Generate verification pairs
-
-```bash
+# 4. Generate verification pairs
 python scripts/make_pairs.py --config configs/m1.yaml
-```
 
-### 4. Run similarity benchmark
-
-```bash
+# 5. Run similarity benchmark (loop vs vectorized)
 python scripts/bench_similarity.py --config configs/m1.yaml
-```
 
-### 5. Run tests
-
-```bash
+# 6. Run tests
 python -m pytest tests/ -v
 ```
 
 ## Outputs
 
-| File | Location |
-|------|----------|
-| Dataset manifest | `outputs/manifest.json` |
-| Pair splits | `outputs/pairs/{train,val,test}.csv` |
-| Benchmark results | `outputs/bench/benchmark_results.json` |
+| File | Description |
+|------|-------------|
+| `outputs/manifest.json` | Dataset manifest (counts, seed, split policy, data source) |
+| `outputs/pairs/train.csv` | Training verification pairs (left_path, right_path, label, split) |
+| `outputs/pairs/val.csv` | Validation verification pairs |
+| `outputs/pairs/test.csv` | Test verification pairs |
+| `outputs/bench/benchmark_results.json` | Loop vs vectorized timing and correctness results |
 
 ## Determinism
 
 - All random operations use seed `42` (configured in `configs/m1.yaml`).
-- Dataset splits are deterministic: identities are sorted before splitting.
-- Pair generation sorts candidates before sampling with the fixed seed.
+- Dataset splits are deterministic via `sklearn.model_selection.train_test_split` with fixed `random_state`.
+- Pair generation sorts candidates before output for consistent ordering.
 - Rerunning any script with the same config produces identical outputs.
