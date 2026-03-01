@@ -1,22 +1,15 @@
-seed: 42
-
-# Paths (relative to project root)
+benchmark:
+  D: 512
+  N: 10000
 data_dir: data/
+data_path: /Users/mns/.cache/kagglehub/datasets/jessicali9530/lfw-dataset/versions/4
 output_dir: outputs/
-
-# Split policy: split by identity — all images of an identity go into one split
-split_policy: "by_identity"
+pairs:
+  negative_per_split: 500
+  positive_per_split: 500
+seed: 42
+split_policy: by_identity
 split_ratios:
+  test: 0.15
   train: 0.7
   val: 0.15
-  test: 0.15
-
-# Pair generation
-pairs:
-  positive_per_split: 500
-  negative_per_split: 500
-
-# Benchmark parameters
-benchmark:
-  N: 10000
-  D: 512
