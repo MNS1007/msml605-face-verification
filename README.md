@@ -33,17 +33,29 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# 3. Ingest LFW dataset (downloads data, creates deterministic splits and manifest)
+# 3. Ingest dataset
 python scripts/ingest_lfw.py --config configs/m1.yaml
 
-# 4. Generate verification pairs
+# 4. Generate pairs
 python scripts/make_pairs.py --config configs/m1.yaml
 
-# 5. Run similarity benchmark (loop vs vectorized)
-python scripts/bench_similarity.py --config configs/m1.yaml
+# 5. Score pairs
+python scripts/score_pairs.py
 
-# 6. Run tests
-python -m pytest tests/ -v
+# 6. Run validation checks
+python scripts/validate_data.py
+
+# 7. Baseline runs
+python scripts/run_threshold_sweep.py
+python scripts/select_threshold.py
+python scripts/evaluate_test.py
+
+# 8. After data improvement (rerun pipeline)
+python scripts/make_pairs.py --config configs/m1.yaml
+python scripts/score_pairs.py
+python scripts/run_threshold_sweep.py
+python scripts/select_threshold.py
+python scripts/evaluate_test.py
 ```
 
 ## Outputs
