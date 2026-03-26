@@ -1,0 +1,35 @@
+seed: 42
+data_path: /Users/mns/.cache/kagglehub/datasets/jessicali9530/lfw-dataset/versions/4
+output_dir: outputs/
+
+split_ratios:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+
+# Threshold sweep configuration
+threshold:
+  min: -1.0
+  max: 1.0
+  steps: 101
+  selection_rule: max_f1   # Rule: select threshold that maximises F1 on validation split
+  higher_is_same: true     # Cosine similarity: larger value => more likely same person
+
+# Score direction: cosine similarity, so higher scores indicate same-person pairs
+score_metric: cosine
+
+# Data-centric improvement settings
+data_centric:
+  max_pairs_per_identity: 30  # Cap any identity to at most 30 pair appearances
+  check_images: true          # Filter out pairs with missing image files
+  rebalance: true             # Downsample majority label to 1:1 ratio
+
+# Error analysis settings
+error_analysis:
+  max_images_per_identity: 4  # Identities with ≤4 images are "rare" for slice 1
+  boundary_width: 0.05        # Score band above threshold for slice 2
+
+# Experiment tracking
+tracking:
+  format: json                # Log runs as JSON files
+  output_dir: outputs/runs/   # Directory for tracked run artifacts
