@@ -21,9 +21,8 @@ def resolve_image_path(data_path, name, imagenum):
     filename = f"{name}_{int(imagenum):04d}.jpg"
     return os.path.join(data_path, "lfw-deepfunneled", "lfw-deepfunneled", name, filename)
 
-
+# Updated the process function for the data change
 def process_split(split_csv_path, split_name, data_path):
-    """Convert a split CSV into a pairs DataFrame with image paths."""
     df = pd.read_csv(split_csv_path)
 
     df["left_path"] = df.apply(
@@ -37,8 +36,18 @@ def process_split(split_csv_path, split_name, data_path):
     df["split"] = split_name
     df = df.sort_values(by=["left_path", "right_path"]).reset_index(drop=True)
 
-    return df[["left_path", "right_path", "label", "split"]]
+    before = len(df)
 
+    df = df[
+        df["left_path"].apply(os.path.exists) &
+        df["right_path"].apply(os.path.exists)
+    ]
+
+    after = len(df)
+
+    print(f"[{split_name}] Removed {before - after} invalid pairs ({before} -> {after})")
+
+    return df[["left_path", "right_path", "label", "split"]]
 
 def main():
     parser = argparse.ArgumentParser(description="Generate verification pairs")
