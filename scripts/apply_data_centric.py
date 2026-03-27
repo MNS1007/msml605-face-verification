@@ -11,9 +11,12 @@ pairs to outputs/pairs_improved/.
 import argparse
 import json
 import os
+import sys
 
 import pandas as pd
 import yaml
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.data_centric import apply_all_improvements, count_identity_appearances
 

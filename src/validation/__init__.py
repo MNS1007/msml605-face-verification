@@ -1,7 +1,7 @@
 """Pipeline validation checks for the face verification system.
 
-Each function raises ValueError with a descriptive message on failure,
-making the pipeline fail early when inputs or outputs are malformed.
+Re-exports all validation functions for convenient imports:
+    from src.validation import validate_pair_schema, validate_labels, ...
 """
 
 import os
@@ -39,14 +39,7 @@ def validate_split_names(df: pd.DataFrame) -> None:
 
 
 def validate_image_paths_exist(df: pd.DataFrame, sample_n: int = 0) -> None:
-    """Check that referenced image paths exist on disk.
-
-    Parameters
-    ----------
-    df : pairs DataFrame
-    sample_n : if > 0, only check a random sample of this many rows for speed.
-               if 0, check all rows.
-    """
+    """Check that referenced image paths exist on disk."""
     check_df = df if sample_n == 0 else df.sample(n=min(sample_n, len(df)), random_state=42)
     missing = []
     for _, row in check_df.iterrows():

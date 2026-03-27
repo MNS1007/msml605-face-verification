@@ -1,0 +1,136 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{amsmath}
+
+\title{MSML/MSAI 605 -- Milestone 2 Evaluation Report\\
+\large Face Verification on LFW with FaceNet}
+\author{Nithin Skantha Murugan \and Sriram Vema}
+\date{March 2026}
+
+\begin{document}
+\maketitle
+
+\section{System Overview}
+
+This report presents the Milestone~2 evaluation of our face verification pipeline.
+The system takes two face images and produces a cosine similarity score using
+\textbf{FaceNet (InceptionResnetV1, pretrained on VGGFace2)} embeddings (512-dim).
+A decision threshold converts this score into a binary same/different verdict.
+
+We use the LFW dataset with deterministic splits (seed=42, 70/15/15 train/val/test)
+and pair generation sorted lexicographically.
+Score direction: \textbf{higher cosine similarity = more likely same person}.
+All runs are tracked via our JSON-based run logger (\texttt{src/tracking/run\_logger.py}),
+with a master CSV at \texttt{outputs/runs/runs.csv}.
+
+\section{Tracked Runs and Threshold Selection}
+
+\textbf{Threshold selection rule:} We select the threshold that \textbf{maximises F1 score
+on the validation split}. This rule is stated before evaluating on the test set and applied
+consistently for both baseline and post-improvement runs.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lllcc@{}}
+\toprule
+\textbf{Run} & \textbf{Purpose} & \textbf{Data} & \textbf{Threshold} & \textbf{F1} \\
+\midrule
+Run 1 & Baseline val threshold sweep     & baseline    & --    & 0.964 (best) \\
+Run 2 & Baseline threshold selection     & baseline    & 0.352  & 0.964 \\
+Run 3 & Baseline test evaluation         & baseline    & 0.352  & 0.974 \\
+Run 4 & Post-change val sweep            & improved\_v1 & --    & 0.963 (best) \\
+Run 5 & Post-change test evaluation      & improved\_v1 & 0.352  & 0.972 \\
+Run 6 & Error analysis (2 slices)        & baseline    & 0.352  & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The selected baseline threshold is $t = 0.3518$, yielding validation
+F1 = 0.964, accuracy = 0.963. The same threshold was used for post-improvement evaluation.
+
+\section{ROC Curve and Confusion Matrix}
+
+The ROC curve is saved at \texttt{outputs/sweeps/roc\_val.png} (200 thresholds from $-0.5$ to $1.0$).
+The curve shows strong separability with the TPR rising steeply before the FPR increases.
+
+\medskip
+
+\noindent\textbf{Confusion matrix at $t=0.3518$ (validation set, baseline):}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lcc@{}}
+\toprule
+ & \textbf{Pred Same} & \textbf{Pred Different} \\
+\midrule
+\textbf{Actual Same}      & TP = 439 & FN = 18 \\
+\textbf{Actual Different}  & FP = 15  & TN = 428 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Accuracy = 96.3\%, Precision = 96.7\%, Recall = 96.1\%.
+
+\section{Data-Centric Improvement}
+
+\textbf{Problem:} The original pair set has slight label imbalance (val: 457 positive vs.\ 443 negative).
+Some identities appear in disproportionately many pairs.
+
+\textbf{Changes applied:}
+(1) \textbf{Invalid image filtering} (\texttt{make\_pairs.py}): Remove pairs with missing files (0 removed--all images valid).
+(2) \textbf{Identity capping} (\texttt{src/data\_centric.py}): Cap each identity to $\leq$30 pair appearances (max was 16, so 0 removed).
+(3) \textbf{Label rebalancing}: Downsample majority label to 1:1 ratio.
+Val: $900 \to 886$ ($-14$). Test: $901 \to 866$ ($-35$).
+
+\textbf{Before vs.\ After (test set):}
+Baseline F1 = 0.974 (901 pairs). Post-improvement F1 = 0.972 (866 pairs).
+The small F1 decrease ($-0.002$) is expected: rebalancing removes ``easy'' majority-class pairs,
+making the evaluation more representative rather than artificially inflated.
+
+\section{Error Analysis}
+
+\subsection{Slice 1: False Negatives Among Rare Identities}
+
+\textbf{Definition:} Same-identity pairs (label=1) predicted as different, where the identity has $\leq$4 unique images in the dataset.
+
+\textbf{Count:} 18 errors out of 426 pairs in this slice (error rate: 4.2\%).
+
+\textbf{Examples:}
+(1) Anna\_Kournikova: score = 0.157, only 3 images in dataset.
+(2) Bill\_Paxton: score = 0.118, only 4 images.
+(3) Charles\_Bronson: score = 0.162, only 2 images.
+
+\textbf{Hypothesis:} Identities with few images produce less stable embeddings.
+Limited intra-person variation means small pose/lighting changes shift the embedding
+below the threshold, causing false rejections.
+
+\textbf{Future improvement:} Augment rare-identity images or use a model with better few-shot generalisation.
+
+\subsection{Slice 2: False Positives Near the Decision Boundary}
+
+\textbf{Definition:} Different-identity pairs (label=0) predicted as same, with score in $[0.352, 0.402)$.
+
+\textbf{Count:} 8 errors out of 8 pairs in this band (error rate: 100\%).
+
+\textbf{Examples:}
+(1) Adam\_Sandler vs.\ Saeed\_Anwar: score = 0.393.
+(2) Billy\_Boyd vs.\ Sid\_Caesar: score = 0.382.
+(3) Bob\_Curtis vs.\ Helen\_Clark: score = 0.368.
+
+\textbf{Hypothesis:} These false accepts involve visually similar individuals whose embeddings
+cluster just above the boundary--often similar age, gender, and conditions.
+
+\textbf{Future improvement:} Use a more discriminative model (e.g., ArcFace) or add hard-negative mining.
+
+\section{Conclusion}
+
+The iteration loop confirmed that FaceNet achieves strong baseline performance
+(test F1 = 0.974). Data-centric rebalancing produces a fairer evaluation ($-0.002$ F1).
+The two error slices reveal failures concentrate on (1) rare identities with unstable embeddings
+and (2) look-alike non-matches near the boundary.
+Future work should focus on embedding quality and pair diversity rather than threshold tuning.
+
+\end{document}
