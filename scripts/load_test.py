@@ -1,7 +1,6 @@
 import sys
 import os
 
-# ✅ MUST come first
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import time
@@ -23,8 +22,8 @@ pairs_df = pd.read_csv(PAIRS_PATH)
 def run_once(idx):
     row = pairs_df.iloc[idx % len(pairs_df)]
 
-    img1 = row["left_path"]   # ✅ FIXED column name
-    img2 = row["right_path"]  # ✅ FIXED column name
+    img1 = row["left_path"]   
+    img2 = row["right_path"] 
 
     result = infer_pair(img1, img2, THRESHOLD)
     return result["latency"]
