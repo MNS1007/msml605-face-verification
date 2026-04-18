@@ -4,7 +4,6 @@ from src.similarity import cosine_similarity
 
 
 def compute_confidence(score: float, threshold: float) -> float:
-    # simple, valid, explainable
     return abs(score - threshold)
 
 
