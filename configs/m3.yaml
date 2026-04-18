@@ -1,0 +1,38 @@
+seed: 42
+data_path: /Users/mns/.cache/kagglehub/datasets/jessicali9530/lfw-dataset/versions/4
+output_dir: outputs/
+split_ratios:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+embedding:
+  model: facenet
+  pretrained: vggface2
+  dimensionality: 512
+  preprocessing:
+    resize:
+    - 160
+    - 160
+    normalize: '[-1, 1]'
+score_metric: cosine
+threshold:
+  min: -1.0
+  max: 1.0
+  steps: 201
+  selection_rule: max_f1
+  higher_is_same: true
+inference:
+  threshold: 0.37
+  score_min: -1.0
+  score_max: 1.0
+confidence:
+  method: threshold_distance
+  score_min: -1.0
+  score_max: 1.0
+load_test:
+  num_workers: 4
+  num_requests: 50
+  pairs_csv: outputs/pairs/test.csv
+tracking:
+  format: json
+  output_dir: outputs/runs/

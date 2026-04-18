@@ -3,7 +3,8 @@ import pytest
 import pandas as pd
 from src.embeddings import preprocess_image, get_embedding
 from src.similarity import cosine_similarity
-from src.inference import apply_threshold, compute_confidence
+from src.inference import apply_threshold
+from src.confidence import calibrated_confidence
 import os
 
 # -------------------------------------------------------------------------
@@ -66,8 +67,9 @@ def test_threshold_application():
 # Confidence calculation test
 # -------------------------------------------------------------------------
 def test_confidence_computation():
-    conf = compute_confidence(0.7, 0.5)
-    assert conf == pytest.approx(0.2)
+    conf = calibrated_confidence(0.7, 0.5)
+    # Score 0.7, threshold 0.5: above threshold, confidence > 0.5
+    assert 0.5 < conf <= 1.0
 
 
 # -------------------------------------------------------------------------
