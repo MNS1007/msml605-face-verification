@@ -112,11 +112,22 @@ def score_split(model, device: str, pairs_csv_path: str, output_csv_path: str, b
 
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Score verification pairs using FaceNet embeddings")
+    parser.add_argument("--pairs-dir", type=str, default=None,
+                        help="Directory containing {train,val,test}.csv pairs "
+                             "(default: outputs/pairs/). Use outputs/pairs_improved/ "
+                             "to score data-centric improved pairs.")
+    parser.add_argument("--scores-dir", type=str, default=None,
+                        help="Directory to write scored CSVs (default: outputs/scores/).")
+    args = parser.parse_args()
+
     cfg = load_config(DEFAULT_CONFIG_PATH)
     output_dir = cfg.get("output_dir", "outputs")
 
-    pairs_dir = os.path.join(output_dir, "pairs")
-    scores_dir = os.path.join(output_dir, "scores")
+    pairs_dir = args.pairs_dir or os.path.join(output_dir, "pairs")
+    scores_dir = args.scores_dir or os.path.join(output_dir, "scores")
 
     train_pairs = os.path.join(pairs_dir, "train.csv")
     val_pairs = os.path.join(pairs_dir, "val.csv")
@@ -128,6 +139,8 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
+    print(f"Pairs dir:  {pairs_dir}")
+    print(f"Scores dir: {scores_dir}")
 
     print("Loading FaceNet model...")
     model = load_facenet_model(device=device)

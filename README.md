@@ -85,7 +85,7 @@ python scripts/evaluate_test.py
 python scripts/apply_data_centric.py --config configs/m2.yaml
 
 # 9. Re-score improved pairs, re-sweep, re-select, re-evaluate
-python scripts/score_pairs.py
+python scripts/score_pairs.py --pairs-dir outputs/pairs_improved/
 python scripts/run_threshold_sweep.py
 python scripts/select_threshold.py
 python scripts/evaluate_test.py
