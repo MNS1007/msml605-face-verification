@@ -2,7 +2,7 @@ benchmark:
   D: 512
   N: 10000
 data_dir: data/
-data_path: /Users/mns/.cache/kagglehub/datasets/jessicali9530/lfw-dataset/versions/4
+data_path: C:\Users\srira\.cache\kagglehub\datasets\jessicali9530\lfw-dataset\versions\4
 output_dir: outputs/
 pairs:
   negative_per_split: 500

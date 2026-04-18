@@ -1,4 +1,4 @@
-"""Vectorized similarity scoring for batches of feature vectors."""
+"""Vectorized similarity scoring for batches of feature vectors (embeddings)."""
 
 import numpy as np
 
@@ -8,21 +8,29 @@ import numpy as np
 # ---------------------------------------------------------------------------
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """Compute row-wise cosine similarity between two (N, D) arrays.
+    """Compute row-wise cosine similarity between two (N, D) embedding arrays.
 
     Returns a length-N array of cosine similarities in [-1, 1].
     """
+    # Compute norms
     a_norm = np.linalg.norm(a, axis=1)
     b_norm = np.linalg.norm(b, axis=1)
+
+    # Dot product
     dot = np.sum(a * b, axis=1)
-    # Avoid division by zero: if either norm is 0, similarity is 0
+
+    # Avoid division by zero
     denom = a_norm * b_norm
     denom = np.where(denom == 0, 1.0, denom)
-    return dot / denom
+
+    sim = dot / denom
+
+    # Clip for numerical stability (important for embeddings)
+    return np.clip(sim, -1.0, 1.0)
 
 
 def euclidean_distance(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """Compute row-wise Euclidean distance between two (N, D) arrays.
+    """Compute row-wise Euclidean distance between two (N, D) embedding arrays.
 
     Returns a length-N array of non-negative distances.
     """
@@ -43,7 +51,8 @@ def cosine_similarity_loop(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         if a_norm == 0 or b_norm == 0:
             result[i] = 0.0
         else:
-            result[i] = np.dot(a[i], b[i]) / (a_norm * b_norm)
+            val = np.dot(a[i], b[i]) / (a_norm * b_norm)
+            result[i] = np.clip(val, -1.0, 1.0)
     return result
 
 
