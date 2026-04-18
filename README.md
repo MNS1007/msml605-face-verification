@@ -95,6 +95,9 @@ python scripts/run_error_analysis.py
 
 # 11. Run tests
 python -m pytest tests/ -v
+
+# 12. Run load/concurrency test
+python scripts/load_test.py
 ```
 
 ## Outputs
@@ -125,3 +128,29 @@ python -m pytest tests/ -v
 ## Report Location
 
 The Milestone 2 evaluation report is at `reports/milestone2_report.pdf`.
+
+## Milestone 3 Summary
+
+### Model Choice
+
+We use the Facenet model (InceptionResnetV1 pretrained on VGGFace2) for this milestone. Due to its pretraining, there was no extra training required for our task. The model was lightweight enough to run on our local machines, but was more complex than the simple pixel-based representations used earlier, which provided us with more accurate results for this milestone. FaceNet is also already a well-established baseline. This helped us in keeping our pipeline as reproducible as possible with minimal additions or trainings. This model produces embeddings where images of the same person are close together and different identities are far apart, which aligns directly with our task: similarity-based verification.
+
+### Load Testing Results
+
+We evaluated the system under concurrent inference using a thread-based load test.
+
+Configuration:
+
+* Requests: 100
+* Workers: 4
+
+Results:
+
+* Throughput: ~14.5 requests/second
+* Average latency: ~0.274 seconds
+* P95 latency: ~0.277 seconds
+* Min latency: ~0.200 seconds
+* Max latency: ~0.827 seconds
+
+The close alignment between average and P95 latency indicates stable performance under concurrency, with minimal tail-latency degradation.
+
