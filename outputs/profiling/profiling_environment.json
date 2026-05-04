@@ -1,0 +1,18 @@
+{
+  "platform": "macOS-15.7.4-arm64-arm-64bit",
+  "python_version": "3.12.0",
+  "machine": "arm64",
+  "processor": "arm",
+  "cpu_count_logical": 8,
+  "torch_version": "2.2.2",
+  "torch_num_threads": 8,
+  "device_used": "cpu",
+  "cuda_available": false,
+  "mps_available": true,
+  "num_pairs_loaded": 901,
+  "pairs_csv": "outputs/pairs/test.csv",
+  "num_single_pairs": 25,
+  "warmup": 3,
+  "repeat": 5,
+  "timestamp": "2026-05-04T19:03:56-0400"
+}

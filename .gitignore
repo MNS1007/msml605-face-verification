@@ -1,6 +1,23 @@
-# Data and outputs (generated, do not commit)
+# Data and outputs (generated, do not commit large artifacts)
 data/
-outputs/
+outputs/*
+
+# Lightweight evidence we DO want graders to see without re-running the pipeline.
+# (Use `outputs/*` above so we can selectively un-ignore subtrees here.)
+!outputs/threshold/
+outputs/threshold/*
+!outputs/threshold/*.json
+!outputs/eval/
+outputs/eval/*
+!outputs/eval/*.json
+!outputs/profiling/
+outputs/profiling/*
+!outputs/profiling/*.json
+!outputs/profiling/*.csv
+!outputs/profiling/*.md
+!outputs/load_test/
+outputs/load_test/*
+!outputs/load_test/*.json
 
 # Python
 __pycache__/

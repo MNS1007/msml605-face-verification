@@ -1,0 +1,201 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.5em}{}
+\hypersetup{colorlinks=true, urlcolor=blue, linkcolor=black}
+
+\title{\textbf{System Card: LFW Face Verification System}\\
+\large MSML/MSAI 605 -- Milestone 4 (Final Release \texttt{v1.0-final})}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-2em}
+
+\section{System Overview}
+\textbf{What it does.} This system is a binary \emph{face-verification} model: given two
+face images, it decides whether they belong to the \emph{same person} (label 1) or to
+\emph{different people} (label 0), and emits a similarity score, a calibrated confidence
+in $[0.5, 1.0]$, and a wall-clock latency.
+
+\textbf{Pipeline.} The deployed system is a five-stage embedding-based pipeline:
+\begin{enumerate}[noitemsep, leftmargin=*]
+    \item \textbf{Preprocessing}: open RGB image, resize to $160\times 160$, normalize to $[-1, 1]$.
+    \item \textbf{Embedding}: FaceNet (\texttt{InceptionResnetV1}, pretrained on VGGFace2) produces a 512-dim vector per image.
+    \item \textbf{Similarity}: vectorized cosine similarity (\texttt{src/similarity.py}).
+    \item \textbf{Decision}: $\text{score} \geq \theta \Rightarrow \text{same}$.
+    \item \textbf{Confidence}: deterministic threshold-distance rule (\texttt{src/confidence.py}), $0.5$ at the boundary, $1.0$ at the score extremes.
+\end{enumerate}
+
+\textbf{Inputs / outputs.} Inputs: two image paths (or a CSV batch of pairs). Outputs:
+\texttt{score}, \texttt{decision} ($\{$same, different$\}$), \texttt{confidence}, \texttt{latency\_ms}.
+
+\textbf{Interfaces.} Importable Python (\texttt{src/inference.py::infer\_pair}); CLI
+(\texttt{scripts/infer.py}); Dockerized CLI (\texttt{Dockerfile}, entry point
+\texttt{python scripts/infer.py}).
+
+\section{Intended Use}
+\textbf{In scope.}
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item Educational demonstration of an embedding-based verification pipeline.
+    \item Offline batch verification on LFW-style \emph{cropped, frontal, well-lit} face crops.
+    \item Coursework reproducibility, benchmarking, and ablations.
+\end{itemize}
+
+\textbf{Out of scope.}
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item Any biometric, identification, or surveillance deployment.
+    \item Liveness or anti-spoofing decisions; this system does no liveness check.
+    \item Identity re-identification across very different sensor types or domains.
+    \item Decisions about access, hiring, law enforcement, or any high-stakes context.
+    \item Inputs that are not face crops (full scenes, multi-face images, non-face content).
+\end{itemize}
+
+\section{Data Summary}
+\textbf{Source.} Labeled Faces in the Wild (LFW), \emph{deep-funneled} variant, accessed via
+\texttt{kagglehub} (dataset \texttt{jessicali9530/lfw-dataset}, version 4).
+
+\textbf{Splits.} Deterministic 70/15/15 train/val/test split with \texttt{seed=42}; identities
+stay within a single split. Pair generation also uses \texttt{seed=42}. After filtering
+unreadable image paths the released system uses 4{,}199 train, 900 val, and 901 test pairs
+(see \texttt{outputs/pairs/}). \emph{Validation} is the only split used for threshold
+selection; \emph{test} is held out.
+
+\textbf{Important data limitations.}
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item LFW is web-scraped from news photography. It is heavily skewed toward
+    public figures (politicians, athletes, celebrities) and toward adult, frontal,
+    well-lit faces.
+    \item Demographic composition of LFW is uneven and not labeled in this dataset, so
+    the released system carries no reliable per-group metric.
+    \item Some identities dominate the pair set (e.g.\ George\_W\_Bush). Milestone~2
+    introduced an optional identity-cap + label-rebalance pass
+    (\texttt{outputs/pairs\_improved/}); the released system reports metrics on the
+    \emph{original} pair set so the numbers are comparable across milestones.
+\end{itemize}
+
+\section{Operating Threshold and Key Metrics}
+\textbf{Threshold selection.} Sweep cosine-similarity thresholds on the validation split
+over $[-0.5, 1.0]$ at 200 evenly spaced points; pick the threshold that maximizes
+\textbf{F1} on validation. The threshold is locked before touching test.
+
+\textbf{Selected operating threshold:} $\boldsymbol{\theta = 0.351759}$
+(see \texttt{outputs/threshold/selected\_threshold.json}, also written into
+\texttt{configs/m3.yaml::inference.threshold}).
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Split} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+Validation ($N=900$, 457 pos) & 0.9633 & 0.9670 & 0.9606 & 0.9638 \\
+Test ($N=901$, 468 pos)       & 0.9734 & 0.9723 & 0.9765 & 0.9744 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Test confusion matrix} ($\theta=0.351759$): TP=457, FP=13, TN=420, FN=11
+(\texttt{outputs/eval/test\_confusion\_matrix.json}).
+
+\textbf{Confidence.} Calibrated to $[0.5, 1.0]$ from
+$\frac{|score - \theta|}{\text{range to extreme}}$, so $0.5$ means ``borderline'' and
+$1.0$ means ``score is at the extreme of its range.'' This is a deterministic mapping
+with no learned parameters; it does not produce calibrated probabilities of identity.
+
+\section{Failure Modes and Limitations}
+The verifier was observed to be less reliable, or can break, on the following inputs:
+
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item \textbf{Visually similar different identities} -- e.g.\ relatives, makeup, or
+    near-look-alikes. Cosine similarity is high; the decision can flip to ``same.''
+    \item \textbf{Off-pose / non-frontal faces} -- LFW is largely frontal; profile and
+    extreme yaw inputs are out-of-distribution and produce noisier scores.
+    \item \textbf{Strong lighting or low-quality crops} -- under/overexposed images,
+    motion blur, low resolution below the 160$\times$160 expected size.
+    \item \textbf{Partial occlusion} -- masks, sunglasses, hands, hair covering the face.
+    \item \textbf{Different sensor / domain} -- non-RGB, infrared, heavily filtered, or
+    cartoon images are not in the training distribution and outputs should not be trusted.
+    \item \textbf{Non-face inputs} -- the pipeline does not detect or reject
+    non-face content; it will silently produce a similarity score.
+    \item \textbf{Dataset-specific bias} -- LFW is overrepresented by adult public
+    figures; performance on under-represented populations is not characterized here
+    and should be assumed worse than the headline numbers.
+\end{itemize}
+
+\section{Fairness-Risk Discussion}
+This system uses a public dataset (LFW) without reliable demographic metadata, so we do
+\emph{not} make subgroup performance claims. We instead document risk categories that
+peer-reviewed face-recognition literature (e.g.\ NIST FRVT, Buolamwini \& Gebru 2018) has
+repeatedly shown to drive uneven accuracy:
+
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item \textbf{Population coverage}: LFW skews white, male, and adult. A
+    pre-trained VGGFace2 backbone was trained on a similarly biased web corpus.
+    Performance on women, on darker-skinned individuals, and on children should be
+    expected to be \emph{worse} than the aggregate metrics in this card.
+    \item \textbf{Image-quality differences}: image quality often correlates with
+    demographics (e.g.\ camera availability, lighting in source photos). Score
+    distributions may therefore diverge along uneven lines even when the model is
+    ``the same.''
+    \item \textbf{Threshold selection}: the operating threshold is tuned to maximize
+    aggregate F1 on validation. A single global threshold can disadvantage subgroups
+    where the score distribution shifts.
+    \item \textbf{Deployment misuse}: the system is \emph{not} a re-identification
+    or surveillance tool. Using it as one would amplify any subgroup-level error
+    against the people most affected.
+\end{itemize}
+
+\textbf{Mitigations in this release.}
+(i) The Out-of-scope section above explicitly forbids high-stakes use.
+(ii) The system emits a calibrated confidence so callers can apply abstention near
+$\theta$.
+(iii) The data-centric improvement script (\texttt{scripts/apply\_data\_centric.py})
+demonstrates how to cap dominant identities for fairer evaluation; the metric numbers
+in this card are reported on the unfiltered pair set so they remain comparable to
+Milestone 2.
+
+\section{Operational Constraints}
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item \textbf{Input format}: RGB face crops; the system internally resizes to
+    $160\times 160$ and normalizes to $[-1, 1]$.
+    \item \textbf{Hardware}: tested on CPU only (Apple~M-series, 8 logical cores).
+    GPU is supported in code but optional; see profiling report for measurement
+    methodology.
+    \item \textbf{Latency / throughput} (CPU baseline, see profiling report):
+    end-to-end median $\approx 124$\,ms per pair at batch~1; throughput peaks near
+    $\approx 12$ pairs/s at batch~8 and degrades sharply at batch~$\geq 16$ on the
+    8-core profiling host (likely thermal / memory pressure).
+    \item \textbf{Embedding stage dominates runtime} ($\approx 94\%$ of single-pair
+    end-to-end). Preprocessing is $\approx 6\%$; cosine scoring is $<0.2\%$.
+    \item \textbf{Determinism}: all random operations use \texttt{seed=42}. The
+    inference path itself has no randomness.
+    \item \textbf{Dependencies}: pinned in \texttt{requirements.txt}; the
+    \texttt{Dockerfile} bakes the FaceNet weights into the image so the container
+    works offline.
+    \item \textbf{Concurrency}: 4-worker thread load test from Milestone~3 hit
+    $\approx 22.6$ req/s with stable P95 (\texttt{outputs/load\_test/runtime\_summary.json}).
+\end{itemize}
+
+\section{Reproducibility Pointer}
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item \textbf{Repository}: this directory; final tag \texttt{v1.0-final}.
+    \item \textbf{Reproducibility checklist}: \texttt{reports/reproducibility\_checklist.md}.
+    \item \textbf{Profiling report}: \texttt{reports/profiling\_report.pdf} (sources in \texttt{reports/profiling\_report.tex}; raw artifacts in \texttt{outputs/profiling/}).
+    \item \textbf{README}: top-level \texttt{README.md} -- copy-pastable setup, CLI, Docker, and profiling commands.
+    \item \textbf{Final config}: \texttt{configs/m3.yaml} (seed, threshold $0.351759$, score range, preprocessing).
+    \item \textbf{Selected threshold artifact}: \texttt{outputs/threshold/selected\_threshold.json}.
+    \item \textbf{Test metrics artifact}: \texttt{outputs/eval/test\_metrics.json}.
+\end{itemize}
+
+\end{document}

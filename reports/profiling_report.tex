@@ -1,0 +1,184 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+\hypersetup{colorlinks=true, urlcolor=blue, linkcolor=black}
+
+\title{\textbf{Profiling Report: LFW Face Verification System}\\
+\large MSML/MSAI 605 -- Milestone 4}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-2em}
+
+\section{Goal}
+Measure how the final embedding-based verifier (FaceNet/VGGFace2 $\to$ cosine
+similarity $\to$ threshold) behaves on real hardware. The required questions are:
+(a)~which stage dominates latency, (b)~how does latency / throughput change with
+batch size, and (c)~is the CPU baseline reproducible from a clean clone.
+
+The system version profiled is the same one the System Card describes
+(\texttt{configs/m3.yaml}, threshold $\theta=0.351759$). The profiler reproduces the
+exact preprocessing, embedding, and scoring used at inference time, so the numbers
+below apply to the deployed pipeline.
+
+\section{Measurement Environment (CPU baseline)}
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item \textbf{Host}: Apple Silicon (\texttt{arm64}), 8 logical cores; macOS 15.7.4
+    (\texttt{macOS-15.7.4-arm64}). PyTorch 2.2.2, Python 3.12.0.
+    \item \textbf{Device}: \texttt{cpu} (chosen explicitly so the baseline is comparable
+    across machines without GPU). \texttt{torch.get\_num\_threads() = 8}.
+    \item \textbf{Model}: \texttt{InceptionResnetV1(pretrained="vggface2")}, weights
+    cached locally / baked into the Docker image.
+    \item \textbf{Inputs}: 901 LFW test pairs from \texttt{outputs/pairs/test.csv},
+    160$\times$160 RGB after resize, normalized to $[-1, 1]$.
+    \item \textbf{Tooling}: \texttt{scripts/profile\_latency.py} (this repo),
+    \texttt{time.perf\_counter()} wall-clock timing.
+    \item \textbf{Run parameters}: 25 distinct pairs for the per-pair stage
+    breakdown (with 3 warm-up iterations), batch sizes $\{1,2,4,8,16,32\}$ swept with
+    3 per-batch warm-up rounds and 5 timed repetitions each.
+    \item \textbf{No GPU run included.} The host has no CUDA. MPS is available but is
+    \emph{not} reported as a substitute for the required CPU baseline.
+\end{itemize}
+
+\section{Methodology}
+The profiler is a straight rewrap of the production inference path so the per-stage
+numbers add up to the end-to-end number. For each stage we time:
+
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item \textbf{Preprocessing}: \texttt{Image.open + convert("RGB") + resize(160) +
+    normalize($[-1, 1]$) + tensor cast}, per image, summed across the pair.
+    \item \textbf{Embedding}: \texttt{model.\_\_call\_\_} forward pass per image
+    (single-pair view) or per batch (batch-size sweep), inside
+    \texttt{torch.no\_grad()}.
+    \item \textbf{Scoring}: vectorized \texttt{cosine\_similarity} from
+    \texttt{src/similarity.py} on the resulting embedding rows.
+    \item \textbf{End-to-end}: timer started before stage~1, stopped after stage~3,
+    so the sum of stages includes all bookkeeping.
+\end{itemize}
+
+For the batch-size sweep each batch has its own warm-up loop (preprocess + embed
+\texttt{warmup} times) before timing, so model graph caches and tensor allocator are
+hot at \emph{that} batch size.
+
+Aggregations are mean / median / P95 / min / max across repetitions; for the per-pair
+breakdown the unit is one pair, for the batch sweep the unit is one batch. A single
+launch produces \texttt{outputs/profiling/per\_stage\_latency.json},
+\texttt{outputs/profiling/batch\_size\_sensitivity.csv},
+\texttt{outputs/profiling/profiling\_environment.json}, and a
+human-readable \texttt{outputs/profiling/profiling\_summary.md}.
+
+\section{Per-Stage Latency (single-pair, CPU baseline)}
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Stage} & \textbf{Mean (ms)} & \textbf{Median (ms)} & \textbf{P95 (ms)} & \textbf{Min (ms)} & \textbf{Max (ms)} \\
+\midrule
+Preprocessing & 7.01 & 6.76 & 8.15 & 6.06 & 8.51 \\
+Embedding (FaceNet)  & 118.70 & 116.60 & 151.68 & 83.92 & 229.23 \\
+Scoring (cosine) & 0.18 & 0.14 & 0.37 & 0.12 & 0.57 \\
+End-to-end       & 125.88 & 124.29 & 158.07 & 90.65 & 237.00 \\
+\bottomrule
+\end{tabular}
+\caption{Per-pair latency, $n=25$ distinct pairs. Source: \texttt{outputs/profiling/per\_stage\_latency.json}.}
+\end{table}
+
+\textbf{Stage share at batch size 1} (mean): embedding $\approx 94.3\%$, preprocessing
+$\approx 5.6\%$, scoring $< 0.2\%$. Embedding is the unambiguous bottleneck on CPU.
+
+\section{Batch-Size Sensitivity (CPU baseline)}
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{rrrrrrr}
+\toprule
+\textbf{Batch} & \textbf{Pre total (ms)} & \textbf{Emb total (ms)} & \textbf{Score total (ms)} & \textbf{End-to-end (ms)} & \textbf{End-to-end / pair (ms)} & \textbf{Pairs/s} \\
+\midrule
+1  & 7.60   & 112.45  & 0.13 & 120.18  & 120.18 & 8.32 \\
+2  & 14.99  & 182.33  & 0.15 & 197.46  & 98.73  & 10.13 \\
+4  & 30.95  & 347.57  & 0.16 & 378.68  & 94.67  & 10.56 \\
+8  & 51.93  & 605.72  & 0.25 & 657.90  & 82.24  & 12.16 \\
+16 & 116.22 & 6684.86 & 0.21 & 6801.28 & 425.08 & 2.35 \\
+32 & 212.29 & 9663.66 & 0.55 & 9876.50 & 308.64 & 3.24 \\
+\bottomrule
+\end{tabular}
+\caption{Latency totals and per-pair amortized cost across batch sizes.
+Source: \texttt{outputs/profiling/batch\_size\_sensitivity.csv}.}
+\end{table}
+
+\textbf{Reading the table:}
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item \textbf{Sweet spot at batch 8.} Per-pair end-to-end drops from
+    $\approx 120$\,ms (batch~1) to $\approx 82$\,ms (batch~8); throughput rises from
+    $\approx 8.3$\,pairs/s to $\approx 12.2$\,pairs/s. Below batch~8 the model is
+    Python-overhead-bound; the model forward pass benefits from larger tensors.
+    \item \textbf{Sharp regression at batch 16.} On this 8-core Apple Silicon host the
+    embedding total jumps an order of magnitude (605\,ms $\to$ 6{,}685\,ms). It is
+    consistent across re-runs and across both \texttt{warmup=2} and \texttt{warmup=3}
+    settings, and it is concentrated in the embedding stage (preprocessing scales
+    linearly). The most plausible cause is exceeding the per-thread working-set size
+    on macOS Accelerate / OpenMP, possibly compounded by thermal throttling -- the
+    model has many conv layers and at batch~16 each forward pass touches a much
+    larger activation tensor than the L2/L3 caches comfortably hold. We report the
+    raw numbers here rather than smooth them away.
+    \item \textbf{Batch 32 partially recovers ($\approx 309$\,ms/pair)} but never
+    matches batch~8. Practical guidance from this baseline: \emph{run with batch
+    size 4--8 on CPU}; if a deployment target is GPU, that ceiling will move and
+    should be re-profiled there.
+    \item \textbf{Scoring cost is negligible at every size}, so optimizing the
+    embedding stage (smaller backbone, ONNX/quantization, GPU) is the only lever
+    that materially moves end-to-end latency.
+\end{itemize}
+
+\section{Stage-by-Stage Interpretation}
+\begin{itemize}[noitemsep, leftmargin=*]
+    \item \textbf{Embedding dominates.} On CPU it accounts for $93$--$98\%$ of
+    end-to-end latency at every batch size we measured. Any future optimization
+    work should start here.
+    \item \textbf{Preprocessing scales linearly} ($\approx 7$\,ms/image regardless of
+    batch). It is bound by PIL decode + numpy cast, so it would benefit from
+    \texttt{torchvision} GPU decode if a GPU were available, but it is not the
+    bottleneck today.
+    \item \textbf{Scoring is essentially free} ($<0.2\%$ of end-to-end). The
+    vectorized cosine kernel from Milestone~1 stays cheap even at the largest
+    batch.
+    \item \textbf{Concurrency} (Milestone 3 load test, 4 workers, 100 single-pair
+    requests): $\approx 22.6$\,req/s with mean latency $\approx 0.18$\,s and a tight
+    P95. The 4-thread thread-pool successfully overlaps Python overhead on top of
+    the CPU-bound embedding.
+\end{itemize}
+
+\section{Optional GPU Comparison}
+\textbf{Not included in this release.} The CPU baseline above is the required
+reference. The host on which this milestone was prepared has no CUDA device, and the
+MPS backend on Apple Silicon was not used because we did not want to compare a CUDA
+result to a non-CUDA result in the same table. The profiler accepts a
+\texttt{--device cuda} flag if the next reviewer wants to add GPU numbers; if so,
+the device, driver, and software stack should be stated alongside the new table and
+kept clearly separate from the CPU baseline.
+
+\section{Reproducing These Numbers}
+From a clean clone, after the standard environment setup
+(\texttt{python -m venv .venv \&\& pip install -r requirements.txt}):
+
+\begin{verbatim}
+python scripts/profile_latency.py --batch-sizes 1 2 4 8 16 32 \
+    --num-single-pairs 25 --warmup 3 --repeat 5
+\end{verbatim}
+
+This writes the JSON / CSV / Markdown artifacts referenced above into
+\texttt{outputs/profiling/}. Re-running the same command on the same host gives
+results within the noise band shown by the min/max columns. See
+\texttt{reports/reproducibility\_checklist.md} for the full release-level path.
+
+\end{document}

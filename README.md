@@ -1,156 +1,157 @@
-# MSML 605 - Face Verification System
+# MSML 605 — Face Verification System
 
-End-to-end face verification system built on the LFW (Labeled Faces in the Wild) dataset.
-Given two face images, the system outputs whether they match (same identity or different),
-along with a similarity score, calibrated confidence, and latency measurement.
+End-to-end face-verification system built on the LFW (Labeled Faces in the Wild)
+dataset. Given two face images the system outputs whether they match (same
+identity or different), along with a similarity score, calibrated confidence,
+and per-pair latency.
 
-**Milestone 1** builds the reproducible, deterministic foundation: dataset ingestion,
-verification pair generation, and fast vectorized similarity scoring.
+**Final release: `v1.0-final` (Milestone 4).**
+The deployed system is a five-stage pipeline:
+`preprocess → FaceNet (InceptionResnetV1, VGGFace2) → cosine similarity →
+threshold → calibrated confidence`. The operating threshold is **0.351759**
+(max F1 on validation), test F1 is **0.9744** (accuracy 0.9734). See the System
+Card for the full audit.
 
-**Milestone 2** adds a disciplined evaluation loop: experiment tracking, threshold
-calibration on a validation split, error analysis with two defined slices, a data-centric
-improvement (identity capping + label rebalancing), pipeline validation checks, and tests.
+## Final-release artifacts
+
+| Deliverable | Location |
+|-------------|----------|
+| **System Card** (intended use, limitations, fairness risks, threshold, metrics, operational constraints) | [`reports/system_card.pdf`](reports/system_card.pdf) |
+| **Profiling report** (per-stage latency, batch-size sensitivity, CPU baseline) | [`reports/profiling_report.pdf`](reports/profiling_report.pdf) |
+| **Reproducibility checklist** | [`reports/reproducibility_checklist.md`](reports/reproducibility_checklist.md) |
+| Selected threshold + metrics | `outputs/threshold/selected_threshold.json`, `outputs/eval/test_metrics.json` |
+| Profiling raw artifacts | `outputs/profiling/` |
+| Final config | `configs/m3.yaml` |
+| Dockerfile / CLI entry point | `Dockerfile`, `scripts/infer.py` |
+| Final Git tag | `v1.0-final` |
 
 ## Repo Layout
 
 | Directory | Contents |
 |-----------|----------|
-| `src/` | Importable Python package — similarity, evaluation, validation, data-centric, error analysis, run tracking |
-| `scripts/` | CLI entrypoints for ingestion, pair generation, scoring, threshold sweep, evaluation, data-centric improvement |
-| `configs/` | YAML config files — `m1.yaml` (Milestone 1), `m2.yaml` (Milestone 2) |
-| `tests/` | Unit tests and integration test |
-| `reports/` | Milestone 2 evaluation report (PDF) |
+| `src/` | Importable Python package — embeddings, similarity, inference, confidence, evaluation, validation, data-centric, error analysis, run tracking |
+| `scripts/` | CLI entry points: ingestion, pair generation, scoring, threshold sweep + selection, evaluation, data-centric improvement, error analysis, **CLI inference (`infer.py`)**, **profiling (`profile_latency.py`)**, load test |
+| `configs/` | YAML configs — `m1.yaml`, `m2.yaml`, **`m3.yaml` (final)** |
+| `tests/` | 74 unit + smoke + integration tests |
+| `reports/` | **System Card, profiling report, reproducibility checklist, Milestone 2 report** |
 | `data/` | Downloaded dataset cache (**gitignored**) |
-| `outputs/` | Generated artifacts — pairs, scores, runs, plots, metrics (**gitignored**) |
+| `outputs/` | Generated artifacts — pairs, scores, runs, threshold, eval, **profiling**, load test (**gitignored except for small summaries**) |
 
-## Milestone 2 Summary
+## How to Run (final release)
 
-### Baseline
-The baseline system uses **FaceNet (InceptionResnetV1, VGGFace2)** to extract 512-dim
-face embeddings, then computes **cosine similarity** between pairs. Deterministic LFW
-pairs are generated with seed=42 and a 70/15/15 train/val/test split. Score direction:
-**higher cosine similarity = more likely same person**.
-
-### Threshold Selection Rule
-The operating threshold is chosen by **maximising F1 score on the validation split**.
-This rule is applied consistently for both the baseline and post-improvement runs.
-The threshold is selected before evaluating on the held-out test split.
-
-### Data-Centric Improvement
-**Problem:** Some identities (e.g., George_W_Bush) dominate the pair set, skewing
-aggregate metrics. Additionally, some image paths reference files that do not exist.
-
-**Change:** (1) Filter pairs with missing/invalid image paths (applied in `make_pairs.py`),
-(2) cap each identity to at most 30 pair appearances, (3) downsample the majority label
-class to restore 1:1 balance. All operations are deterministic (seed=42).
-
-**Effect:** The evaluation set becomes more representative of the long tail of identities,
-giving a fairer picture of verifier robustness.
-
-### Selected Threshold
-See `outputs/threshold/selected_threshold.json` and `outputs/runs/` for tracked runs.
-
-## How to Run
-
-Reproduce all milestone outputs from a clean clone:
+The reproducibility checklist (`reports/reproducibility_checklist.md`) is the
+single source of truth. The minimal copy-pastable path is:
 
 ```bash
-# 1. Clone and enter project
-git clone <repo-url>
-cd msml605-face-verification
-
-# 2. Set up environment
+# 1. Set up environment
 python3 -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
 
-# 3. Ingest dataset (downloads LFW, creates deterministic splits)
-python scripts/ingest_lfw.py --config configs/m1.yaml
-
-# 4. Generate pairs (filters invalid image paths)
-python scripts/make_pairs.py --config configs/m1.yaml
-
-# 5. Score pairs (FaceNet embeddings + cosine similarity)
+# 2. Reproduce data + scores
+python scripts/ingest_lfw.py    --config configs/m1.yaml
+python scripts/make_pairs.py    --config configs/m1.yaml
 python scripts/score_pairs.py
 
-# 6. Run validation checks
-python scripts/validate_data.py
-
-# 7. Baseline threshold sweep + selection + test evaluation
+# 3. Reproduce threshold + test metrics (System Card numbers)
 python scripts/run_threshold_sweep.py
 python scripts/select_threshold.py
 python scripts/evaluate_test.py
 
-# 8. Apply data-centric improvement (identity capping + rebalancing)
-python scripts/apply_data_centric.py --config configs/m2.yaml
+# 4. Reproduce the profiling report (CPU baseline)
+python scripts/profile_latency.py \
+    --batch-sizes 1 2 4 8 16 32 \
+    --num-single-pairs 25 --warmup 3 --repeat 5
 
-# 9. Re-score improved pairs, re-sweep, re-select, re-evaluate
-python scripts/score_pairs.py --pairs-dir outputs/pairs_improved/
-python scripts/run_threshold_sweep.py
-python scripts/select_threshold.py
-python scripts/evaluate_test.py
+# 5. Run the released CLI on a single pair
+python scripts/infer.py --left <image_a.jpg> --right <image_b.jpg>
 
-# 10. Run error analysis
-python scripts/run_error_analysis.py
+# 6. Run the test suite (74 tests)
+python -m pytest tests/
 
-# 11. Run tests
-python -m pytest tests/ -v
-
-# 12. Run load/concurrency test
+# 7. (Optional) concurrency / load test
 python scripts/load_test.py
 ```
 
-## Outputs
+### Dockerized CLI (final-release path)
 
-| File | Description |
-|------|-------------|
-| `outputs/manifest.json` | Dataset manifest (counts, seed, split policy, data source) |
-| `outputs/pairs/{train,val,test}.csv` | Verification pairs (left_path, right_path, label, split) |
-| `outputs/pairs_improved/` | Pairs after data-centric improvement |
-| `outputs/scores/` | Scored pairs with cosine similarity column |
-| `outputs/sweeps/val_sweep.csv` | Threshold sweep results |
-| `outputs/sweeps/roc_val.png` | ROC-style plot |
-| `outputs/threshold/selected_threshold.json` | Selected threshold and metrics |
-| `outputs/threshold/val_confusion_matrix.json` | Confusion matrix at selected threshold |
-| `outputs/eval/` | Test set evaluation metrics and confusion matrix |
-| `outputs/runs/` | Tracked experiment runs (JSON logs + runs.csv) |
-| `outputs/error_analysis/` | Error slice analysis results |
-| `reports/milestone2_report.pdf` | Milestone 2 evaluation report |
+```bash
+# Build (downloads + bakes FaceNet weights into the image)
+docker build -t face-verifier:v1.0-final .
+
+# Run on a pair
+docker run --rm \
+    -v "$HOME/.cache/kagglehub:/root/.cache/kagglehub:ro" \
+    face-verifier:v1.0-final \
+    --left  /root/.cache/kagglehub/datasets/jessicali9530/lfw-dataset/versions/4/lfw-deepfunneled/lfw-deepfunneled/Aaron_Sorkin/Aaron_Sorkin_0001.jpg \
+    --right /root/.cache/kagglehub/datasets/jessicali9530/lfw-dataset/versions/4/lfw-deepfunneled/lfw-deepfunneled/Aaron_Sorkin/Aaron_Sorkin_0002.jpg
+
+# Batch from CSV
+docker run --rm \
+    -v "$HOME/.cache/kagglehub:/root/.cache/kagglehub:ro" \
+    -v "$PWD/outputs:/app/outputs:ro" \
+    face-verifier:v1.0-final \
+    --batch /app/outputs/pairs/test.csv
+```
+
+## What changed in Milestone 4
+
+Milestone 4 finalizes and audits the Milestone 3 system; it does not introduce
+new representation work. Concretely:
+
+- **Aligned the inference preprocessing with the scoring path.** `src/embeddings.py`
+  now normalizes RGB inputs to `[-1, 1]` (the standard FaceNet/VGGFace2 input
+  range) so the threshold calibrated against scored CSVs applies to the live
+  CLI / Docker inference path.
+- **Re-selected and re-evaluated the operating threshold** against the current
+  scored splits. `outputs/threshold/selected_threshold.json` and
+  `outputs/eval/test_metrics.json` are now mutually consistent at `θ = 0.351759`.
+- **Synced `configs/m3.yaml::inference.threshold` to `0.351759`** so the
+  System Card, README, config, CLI default, and saved JSON all agree.
+- **Added `scripts/profile_latency.py`** — reproduces the production stages
+  exactly, sweeps batch sizes, and writes machine-readable artifacts to
+  `outputs/profiling/`.
+- **Authored `reports/system_card.pdf`** — intended use, limitations, failure
+  modes, fairness-risk discussion, operational constraints, reproducibility
+  pointer.
+- **Authored `reports/profiling_report.pdf`** — environment, per-stage latency,
+  batch-size sensitivity, CPU baseline, interpretation. No GPU run; the host
+  has no CUDA.
+- **Authored `reports/reproducibility_checklist.md`** — exact commands for
+  every artifact above.
+- **All 74 tests pass** after the preprocessing fix.
+
+## Headline metrics (final system, test split)
+
+| Metric | Value |
+|--------|-------|
+| Threshold (cosine, max F1 on val) | **0.351759** |
+| Accuracy | 0.9734 |
+| Precision | 0.9723 |
+| Recall | 0.9765 |
+| F1 | 0.9744 |
+| Confusion matrix (TP, FP, TN, FN) | 457, 13, 420, 11 |
+
+CPU baseline (single pair, mean): preprocessing 7.0 ms, embedding 118.7 ms,
+scoring 0.18 ms, end-to-end 125.9 ms. Throughput peaks at batch 8
+(≈ 12.2 pairs/s) and degrades past batch 16 on the 8-core profiling host
+(see `reports/profiling_report.pdf`).
 
 ## Determinism
 
-- All random operations use seed `42` (configured in YAML config files).
-- Dataset splits are deterministic via `sklearn.model_selection.train_test_split` with fixed `random_state`.
-- Pair generation sorts candidates before output for consistent ordering.
-- Data-centric operations use `np.random.default_rng(42)` for reproducible sampling.
-- Rerunning any script with the same config produces identical outputs.
+- Every random operation uses seed `42` (configured in YAML).
+- Splits are deterministic via `train_test_split(random_state=42)`.
+- Pair generation sorts candidates before output for stable ordering.
+- Data-centric operations use `np.random.default_rng(42)`.
+- Re-running any script with the same config produces identical outputs.
 
-## Report Location
+## Earlier milestones (kept for context)
 
-The Milestone 2 evaluation report is at `reports/milestone2_report.pdf`.
-
-## Milestone 3 Summary
-
-### Model Choice
-
-We use the Facenet model (InceptionResnetV1 pretrained on VGGFace2) for this milestone. Due to its pretraining, there was no extra training required for our task. The model was lightweight enough to run on our local machines, but was more complex than the simple pixel-based representations used earlier, which provided us with more accurate results for this milestone. FaceNet is also already a well-established baseline. This helped us in keeping our pipeline as reproducible as possible with minimal additions or trainings. This model produces embeddings where images of the same person are close together and different identities are far apart, which aligns directly with our task: similarity-based verification.
-
-### Load Testing Results
-
-We evaluated the system under concurrent inference using a thread-based load test.
-
-Configuration:
-
-* Requests: 100
-* Workers: 4
-
-Results:
-
-* Throughput: ~14.5 requests/second
-* Average latency: ~0.274 seconds
-* P95 latency: ~0.277 seconds
-* Min latency: ~0.200 seconds
-* Max latency: ~0.827 seconds
-
-The close alignment between average and P95 latency indicates stable performance under concurrency, with minimal tail-latency degradation.
-
+- **Milestone 1** built the deterministic dataset/pairs/scoring backbone.
+- **Milestone 2** added threshold calibration, tracked runs, error analysis,
+  data-centric improvement, validation checks, and tests. Report:
+  `reports/milestone2_report.pdf`.
+- **Milestone 3** introduced FaceNet embeddings, the `infer_pair` API,
+  `scripts/infer.py`, the Dockerfile, and the load test.
+- **Milestone 4** (this release) is the audit / profiling / release milestone.

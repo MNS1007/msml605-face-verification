@@ -10,10 +10,13 @@ def preprocess_image(image_path: str) -> torch.Tensor:
     img = Image.open(image_path).convert("RGB")
     img = img.resize((160, 160))
 
-    x = np.array(img) / 255.0
-    x = torch.tensor(x).permute(2, 0, 1).float().unsqueeze(0)
-
-    return x
+    # FaceNet (VGGFace2) expects inputs normalized to [-1, 1].
+    # This matches scripts/score_pairs.py so the calibrated threshold
+    # selected against scored CSVs applies to the inference path.
+    x = np.array(img).astype(np.float32) / 255.0
+    x = (x - 0.5) / 0.5
+    x = np.transpose(x, (2, 0, 1))
+    return torch.tensor(x, dtype=torch.float32).unsqueeze(0)
 
 
 def get_embedding(image_tensor: torch.Tensor) -> np.ndarray:
