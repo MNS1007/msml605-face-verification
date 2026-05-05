@@ -5,8 +5,12 @@
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{titlesec}
+\usepackage{url}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.5em}
+\sloppy
+\emergencystretch=3em
+\newcommand{\fpath}[1]{\path{#1}}
 \titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
 \hypersetup{colorlinks=true, urlcolor=blue, linkcolor=black}
 
@@ -38,7 +42,7 @@ below apply to the deployed pipeline.
     across machines without GPU). \texttt{torch.get\_num\_threads() = 8}.
     \item \textbf{Model}: \texttt{InceptionResnetV1(pretrained="vggface2")}, weights
     cached locally / baked into the Docker image.
-    \item \textbf{Inputs}: 901 LFW test pairs from \texttt{outputs/pairs/test.csv},
+    \item \textbf{Inputs}: 901 LFW test pairs from \fpath{outputs/pairs/test.csv},
     160$\times$160 RGB after resize, normalized to $[-1, 1]$.
     \item \textbf{Tooling}: \texttt{scripts/profile\_latency.py} (this repo),
     \texttt{time.perf\_counter()} wall-clock timing.
@@ -71,10 +75,10 @@ hot at \emph{that} batch size.
 
 Aggregations are mean / median / P95 / min / max across repetitions; for the per-pair
 breakdown the unit is one pair, for the batch sweep the unit is one batch. A single
-launch produces \texttt{outputs/profiling/per\_stage\_latency.json},
-\texttt{outputs/profiling/batch\_size\_sensitivity.csv},
-\texttt{outputs/profiling/profiling\_environment.json}, and a
-human-readable \texttt{outputs/profiling/profiling\_summary.md}.
+launch produces \fpath{outputs/profiling/per_stage_latency.json},
+\fpath{outputs/profiling/batch_size_sensitivity.csv},
+\fpath{outputs/profiling/profiling_environment.json}, and a
+human-readable \fpath{outputs/profiling/profiling_summary.md}.
 
 \section{Per-Stage Latency (single-pair, CPU baseline)}
 \begin{table}[h]
@@ -90,7 +94,8 @@ Scoring (cosine) & 0.18 & 0.14 & 0.37 & 0.12 & 0.57 \\
 End-to-end       & 125.88 & 124.29 & 158.07 & 90.65 & 237.00 \\
 \bottomrule
 \end{tabular}
-\caption{Per-pair latency, $n=25$ distinct pairs. Source: \texttt{outputs/profiling/per\_stage\_latency.json}.}
+\caption{Per-pair latency, $n=25$ distinct pairs.
+Source: \texttt{outputs/profiling/per\_stage\_latency.json}.}
 \end{table}
 
 \textbf{Stage share at batch size 1} (mean): embedding $\approx 94.3\%$, preprocessing
@@ -99,10 +104,12 @@ $\approx 5.6\%$, scoring $< 0.2\%$. Embedding is the unambiguous bottleneck on C
 \section{Batch-Size Sensitivity (CPU baseline)}
 \begin{table}[h]
 \centering
-\small
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{rrrrrrr}
 \toprule
-\textbf{Batch} & \textbf{Pre total (ms)} & \textbf{Emb total (ms)} & \textbf{Score total (ms)} & \textbf{End-to-end (ms)} & \textbf{End-to-end / pair (ms)} & \textbf{Pairs/s} \\
+\textbf{Batch} & \textbf{Pre} & \textbf{Embed} & \textbf{Score} & \textbf{E2E} & \textbf{E2E/pair} & \textbf{Pairs/s} \\
+                & \textbf{(ms)} & \textbf{(ms)} & \textbf{(ms)} & \textbf{(ms)} & \textbf{(ms)} & \\
 \midrule
 1  & 7.60   & 112.45  & 0.13 & 120.18  & 120.18 & 8.32 \\
 2  & 14.99  & 182.33  & 0.15 & 197.46  & 98.73  & 10.13 \\
@@ -113,7 +120,8 @@ $\approx 5.6\%$, scoring $< 0.2\%$. Embedding is the unambiguous bottleneck on C
 \bottomrule
 \end{tabular}
 \caption{Latency totals and per-pair amortized cost across batch sizes.
-Source: \texttt{outputs/profiling/batch\_size\_sensitivity.csv}.}
+Columns: preprocessing total, embedding total, scoring total, end-to-end total,
+end-to-end per pair, throughput. Source: \texttt{outputs/profiling/batch\_size\_sensitivity.csv}.}
 \end{table}
 
 \textbf{Reading the table:}
@@ -177,8 +185,8 @@ python scripts/profile_latency.py --batch-sizes 1 2 4 8 16 32 \
 \end{verbatim}
 
 This writes the JSON / CSV / Markdown artifacts referenced above into
-\texttt{outputs/profiling/}. Re-running the same command on the same host gives
+\fpath{outputs/profiling/}. Re-running the same command on the same host gives
 results within the noise band shown by the min/max columns. See
-\texttt{reports/reproducibility\_checklist.md} for the full release-level path.
+\fpath{reports/reproducibility_checklist.md} for the full release-level path.
 
 \end{document}

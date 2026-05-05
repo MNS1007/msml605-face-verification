@@ -5,8 +5,13 @@
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{titlesec}
+\usepackage{url}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.5em}
+\sloppy
+\emergencystretch=3em
+% Path macro that wraps at "/" and "_" inside running text.
+\newcommand{\fpath}[1]{\path{#1}}
 
 \titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
 \titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.5em}{}
@@ -79,7 +84,7 @@ selection; \emph{test} is held out.
     the released system carries no reliable per-group metric.
     \item Some identities dominate the pair set (e.g.\ George\_W\_Bush). Milestone~2
     introduced an optional identity-cap + label-rebalance pass
-    (\texttt{outputs/pairs\_improved/}); the released system reports metrics on the
+    (\fpath{outputs/pairs_improved/}); the released system reports metrics on the
     \emph{original} pair set so the numbers are comparable across milestones.
 \end{itemize}
 
@@ -97,8 +102,8 @@ over $[-0.5, 1.0]$ at 200 evenly spaced points; pick the threshold that maximize
 \textbf{F1} on validation. The threshold is locked before touching test.
 
 \textbf{Selected operating threshold:} $\boldsymbol{\theta = 0.351759}$
-(see \texttt{outputs/threshold/selected\_threshold.json}, also written into
-\texttt{configs/m3.yaml::inference.threshold}).
+(see \fpath{outputs/threshold/selected_threshold.json}, also written into
+\fpath{configs/m3.yaml::inference.threshold}).
 
 \begin{table}[h]
 \centering
@@ -114,12 +119,13 @@ Test ($N=901$, 468 pos)       & 0.9734 & 0.9723 & 0.9765 & 0.9744 \\
 \end{table}
 
 \textbf{Test confusion matrix} ($\theta=0.351759$): TP=457, FP=13, TN=420, FN=11
-(\texttt{outputs/eval/test\_confusion\_matrix.json}).
+(see \fpath{outputs/eval/test_confusion_matrix.json}).
 
-\textbf{Confidence.} Calibrated to $[0.5, 1.0]$ from
-$\frac{|score - \theta|}{\text{range to extreme}}$, so $0.5$ means ``borderline'' and
-$1.0$ means ``score is at the extreme of its range.'' This is a deterministic mapping
-with no learned parameters; it does not produce calibrated probabilities of identity.
+\textbf{Confidence.} Calibrated to $[0.5, 1.0]$ as
+$0.5 + 0.5 \cdot |score - \theta| / R$, where $R$ is the score range on the
+relevant side of $\theta$. So $0.5$ means ``borderline'' and $1.0$ means
+``score is at the extreme of its range.'' This is a deterministic mapping with
+no learned parameters; it does not produce calibrated probabilities of identity.
 
 \section{Failure Modes and Limitations}
 The verifier was observed to be less reliable, or can break, on the following inputs:
@@ -192,18 +198,18 @@ Milestone 2.
     \texttt{Dockerfile} bakes the FaceNet weights into the image so the container
     works offline.
     \item \textbf{Concurrency}: 4-worker thread load test from Milestone~3 hit
-    $\approx 22.6$ req/s with stable P95 (\texttt{outputs/load\_test/runtime\_summary.json}).
+    $\approx 22.6$ req/s with stable P95 (\fpath{outputs/load_test/runtime_summary.json}).
 \end{itemize}
 
 \section{Reproducibility Pointer}
 \begin{itemize}[noitemsep, leftmargin=*]
     \item \textbf{Repository}: this directory; final tag \texttt{v1.0-final}.
-    \item \textbf{Reproducibility checklist}: \texttt{reports/reproducibility\_checklist.md}.
-    \item \textbf{Profiling report}: \texttt{reports/profiling\_report.pdf} (sources in \texttt{reports/profiling\_report.tex}; raw artifacts in \texttt{outputs/profiling/}).
+    \item \textbf{Reproducibility checklist}: \fpath{reports/reproducibility_checklist.md}.
+    \item \textbf{Profiling report}: \fpath{reports/profiling_report.pdf} (sources in \fpath{reports/profiling_report.tex}; raw artifacts in \fpath{outputs/profiling/}).
     \item \textbf{README}: top-level \texttt{README.md} -- copy-pastable setup, CLI, Docker, and profiling commands.
-    \item \textbf{Final config}: \texttt{configs/m3.yaml} (seed, threshold $0.351759$, score range, preprocessing).
-    \item \textbf{Selected threshold artifact}: \texttt{outputs/threshold/selected\_threshold.json}.
-    \item \textbf{Test metrics artifact}: \texttt{outputs/eval/test\_metrics.json}.
+    \item \textbf{Final config}: \fpath{configs/m3.yaml} (seed, threshold $0.351759$, score range, preprocessing).
+    \item \textbf{Selected threshold artifact}: \fpath{outputs/threshold/selected_threshold.json}.
+    \item \textbf{Test metrics artifact}: \fpath{outputs/eval/test_metrics.json}.
 \end{itemize}
 
 \end{document}
