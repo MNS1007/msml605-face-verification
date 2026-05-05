@@ -5,6 +5,18 @@ clean clone. Every command is copy-pastable from a Unix shell at the repository
 root. Numbers below come from the run that produced the System Card and the
 profiling report.
 
+> **Note on what is reproduced.** The generated `outputs/pairs/*.csv` and
+> `outputs/scores/*_scored.csv` files contain **absolute filesystem paths** to
+> the local kagglehub dataset cache and are therefore machine-specific. They are
+> intentionally **gitignored**. The repository ships the deterministic
+> *generators* (`ingest_lfw.py`, `make_pairs.py`, `score_pairs.py`),
+> `configs/m1.yaml`, and seed `42` — running steps 2 and 3 below regenerates
+> them on your machine. Because the seed and sort order are fixed, the same
+> identity pairs emerge in the same order; only the path prefix differs across
+> machines. The committed lightweight evidence under
+> `outputs/threshold/`, `outputs/eval/`, `outputs/profiling/`, and
+> `outputs/load_test/` is path-free and directly comparable across machines.
+
 ## 0. Pinned references
 
 | Item | Value |

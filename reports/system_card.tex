@@ -83,6 +83,14 @@ selection; \emph{test} is held out.
     \emph{original} pair set so the numbers are comparable across milestones.
 \end{itemize}
 
+\textbf{Path portability.} The generated pair / score CSVs in \texttt{outputs/pairs/}
+and \texttt{outputs/scores/} contain absolute paths into the local kagglehub cache
+and are therefore machine-specific. They are intentionally gitignored. The
+repository ships the deterministic generators, \texttt{configs/m1.yaml}, and
+\texttt{seed=42}; the reproducibility checklist regenerates the CSVs against the
+grader's machine. Because the seed and sort order are fixed, the resulting pair
+content is identical across machines (only the path prefix differs).
+
 \section{Operating Threshold and Key Metrics}
 \textbf{Threshold selection.} Sweep cosine-similarity thresholds on the validation split
 over $[-0.5, 1.0]$ at 200 evenly spaced points; pick the threshold that maximizes

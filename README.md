@@ -138,13 +138,35 @@ scoring 0.18 ms, end-to-end 125.9 ms. Throughput peaks at batch 8
 (≈ 12.2 pairs/s) and degrades past batch 16 on the 8-core profiling host
 (see `reports/profiling_report.pdf`).
 
-## Determinism
+## Determinism and Reproducibility
 
 - Every random operation uses seed `42` (configured in YAML).
 - Splits are deterministic via `train_test_split(random_state=42)`.
 - Pair generation sorts candidates before output for stable ordering.
 - Data-centric operations use `np.random.default_rng(42)`.
 - Re-running any script with the same config produces identical outputs.
+
+### Note on path portability
+
+The generated `outputs/pairs/*.csv` and `outputs/scores/*_scored.csv` files
+contain **absolute filesystem paths** to the local kagglehub dataset cache
+(e.g. `/Users/<you>/.cache/kagglehub/datasets/jessicali9530/lfw-dataset/versions/4/...`).
+That makes those CSVs machine-specific. **They are intentionally gitignored** —
+the repository ships the *generators* (`scripts/ingest_lfw.py`,
+`scripts/make_pairs.py`, `scripts/score_pairs.py`), the seed, and
+`configs/m1.yaml`, not the produced CSVs. On a fresh clone:
+
+1. `python scripts/ingest_lfw.py --config configs/m1.yaml` — kagglehub downloads
+   LFW into *your* `~/.cache/kagglehub/...`.
+2. `python scripts/make_pairs.py --config configs/m1.yaml` — regenerates the
+   pair CSVs with *your* machine's absolute paths.
+3. Because the seed and sort order are fixed, the same identity pairs emerge in
+   the same order; only the path prefix changes.
+
+What the repository **does** ship as committed evidence are the lightweight
+metric / threshold / profiling JSONs under `outputs/threshold/`,
+`outputs/eval/`, `outputs/profiling/`, and `outputs/load_test/`. Those contain
+no filesystem paths and are directly comparable across machines.
 
 ## Earlier milestones (kept for context)
 
